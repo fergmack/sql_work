@@ -1,0 +1,240 @@
+/// Filtering all data captured between an article's publish date and the following 30 days
+-- i.e. WHERE date_measured BETWEEN Publication_Date AND DATE_ADD(Publication_Date, INTERVAL 30 day) 
+
+/////// **** 
+/////// **** 1
+/////// **** 
+create or replace table mcgivney.thirty_day_performance_temp as
+select * 
+FROM
+    (
+    select cast(concat(year, "-", month, "-", day) as date) date_measured, *
+    from 
+        (
+          SELECT 
+                   -- dates
+                  SUBSTR(date, 0,4) year,
+                  SUBSTR(date, -4, 2) month,
+                  SUBSTR(date,  -2) day,
+                  date,
+          page,
+                  cast( Publication_Date as date) Publication_Date,
+                  Publication_Date publication_date_string,
+                  MonthValue,
+                  YearValue,
+                
+--           campaign,
+// adhoc additions 
+          emea_gdn,
+          email_ca, 
+          email_nl,
+          trueview,
+                -- general fields
+                 countryRegion, 
+                 pageTitle,
+                  defaultChannelGrouping,
+          defaultChannelGrouping_new,
+
+                Content_Type,
+                Author,
+          
+--                sum(case when PreviousPage = '/intl/en-gb/' THEN Engaged_UPVs else 0 end) as ukHomepage,
+--  sum(case when PreviousPage = '/intl/en-154/' THEN Engaged_UPVs else 0 end) as nordicsHomepage,
+--    sum(case when PreviousPage = '/intl/fr-fr/' THEN Engaged_UPVs else 0 end) as franceHomepage,
+--      sum(case when PreviousPage = '/intl/it-it/' THEN Engaged_UPVs else 0 end) as italyHomepage,
+--        sum(case when PreviousPage = '/intl/en-145/' THEN Engaged_UPVs else 0 end) as menaHomepage,
+--                  sum(case when PreviousPage = '/intl/fr-145/' THEN Engaged_UPVs else 0 end) as FRmenaHomepage,
+
+--           -- ToDo add mena fr
+--          sum(case when PreviousPage = '/intl/en-cee/' THEN Engaged_UPVs else 0 end) as ceeHomepage,
+--            sum(case when PreviousPage = '/intl/tr-tr' THEN Engaged_UPVs else 0 end) as turkeyHomepage,
+--              sum(case when PreviousPage = '/intl/es-es/' THEN Engaged_UPVs else 0 end) as spainHomepage,
+          
+                concat(Publication_Date, countryRegion, pageTitle) join_key_30day,
+                concat(pageTitle, "-", countryRegion) pageTiltleCountry,
+                count(DISTINCT pageTitle) article_count,
+                count(DISTINCT Content_Type)content_type_count,
+          
+                sum(Engaged_UPVs) Engaged_UPVs
+          
+          from mcgivney.re_scorecard_master
+        //*** Switch back to table below if metrics look off ***\\\
+-- FROM twg_platform.Prod_ContentScoreCard_Master 
+          
+          
+        WHERE (
+            CountryRegion = 'UK' OR
+            CountryRegion = 'Spain' OR
+            CountryRegion = 'France' OR
+            CountryRegion = 'Russia' OR
+            CountryRegion = 'Germany' OR
+            CountryRegion = 'Nordics' OR
+            CountryRegion = 'MENA' OR
+            CountryRegion = 'Turkey' OR
+            CountryRegion = 'Italy' OR
+            CountryRegion = 'Central Eastern Europe' OR
+            CountryRegion = 'MENA French'
+            )
+            AND (
+            Content_Type = 'Article' OR
+            Content_Type = 'Case Study' OR
+            Content_Type = 'Report' OR
+            Content_Type = 'Infographic' OR
+            Content_Type = 'Interview' OR
+            Content_Type = 'Tool' OR
+            Content_Type = 'Tutorial' OR 
+            Content_Type = 'Perspective' OR
+            Content_Type = 'Product Information' OR
+            Content_Type = 'Video'
+            ) 
+          and Publication_Date >= '2018-01-01'
+          
+          
+          group by 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19
+          )
+  )
+  
+--  WHERE date_measured BETWEEN Publication_Date and DATE_ADD(Publication_Date, INTERVAL 30 day)
+ ;
+ 
+ 
+ 
+ 
+ /////// **** 
+/////// **** 2
+/////// **** 
+ 
+ 
+ // get min date to use as a filter
+ Create or replace table mcgivney.min_date_for_twg_eUPVs as
+select DISTINCT  pageTitle_b, 
+ Publication_Date_b, 
+ countryRegion_b, 
+publication_date_reformat_str, 
+
+min(date_measured_string) min_date_eUPV, 
+concat(Publication_Date_b, countryRegion_b, pageTitle_b) join_key from 
+(
+select DISTINCT pageTitle pageTitle_b, 
+  countryRegion countryRegion_b, 
+  Publication_Date Publication_Date_b, 
+--   campaign,
+  date, 
+  REGEXP_REPLACE(Publication_Date, "-", "") publication_date_reformat_str,
+  cast(date as string) date_measured_string, 
+  sum(Engaged_UPVs) eUPVs
+  
+    from mcgivney.re_scorecard_master
+        //*** Switch back to table below if metrics look off ***\\\
+-- FROM twg_platform.Prod_ContentScoreCard_Master 
+        WHERE (
+            CountryRegion = 'UK' OR
+            CountryRegion = 'Spain' OR
+            CountryRegion = 'France' OR
+            CountryRegion = 'Russia' OR
+            CountryRegion = 'Germany' OR
+            CountryRegion = 'Nordics' OR
+            CountryRegion = 'MENA' OR
+            CountryRegion = 'Turkey' OR
+            CountryRegion = 'Italy' OR
+            CountryRegion = 'Central Eastern Europe' OR
+            CountryRegion = 'MENA French'
+            )
+            AND (
+            Content_Type = 'Article' OR
+            Content_Type = 'Case Study' OR
+            Content_Type = 'Report' OR
+            Content_Type = 'Infographic' OR
+            Content_Type = 'Interview' OR
+            Content_Type = 'Tool' OR
+            Content_Type = 'Tutorial' OR 
+            Content_Type = 'Perspective' OR
+            Content_Type = 'Product Information' OR
+            Content_Type = 'Video'
+            ) 
+          and Publication_Date >= '2018-01-01'
+   group by 1, 2, 3, 4, 5
+  )
+  where date_measured_string >= publication_date_reformat_str
+   group by 1, 2, 3, 4
+   ;
+ 
+ /// created table for use
+ 
+ create or REPLACE table mcgivney.thirty_day_performance 
+ as
+ SELECT 
+ min_date_eUPV_filter,
+date_measured,
+year,
+month,
+day,
+date,
+REGEXP_REPLACE(page, r'\/$', '') page, 
+Publication_Date,
+publication_date_string,
+MonthValue,
+YearValue,
+countryRegion,
+pageTitle,
+defaultChannelGrouping,
+-- ad hoc additions 
+defaultChannelGrouping_new,
+      emea_gdn,
+          email_ca, 
+          email_nl,
+          trueview,
+// create new column with display
+-- case when campaign like lower('%gdn%') then 'Display' else defaultChannelGrouping end newTrafficColumn,
+Content_Type,
+Author,
+-- campaign,
+
+pageTiltleCountry,
+article_count,
+join_key_30day,
+content_type_count,
+Engaged_UPVs,
+publication_date_reformat_str,
+min_date_eUPV,
+year_min_measured,
+month_min_measured,
+day_min_measured
+-- ukHomepage,
+-- franceHomepage,
+-- italyHomepage,
+-- spainHomepage,
+-- turkeyHomepage,
+-- ceeHomepage, 
+-- nordicsHomepage
+
+ FROM (
+                     SELECT 
+                       cast(concat(year_min_measured, "-", month_min_measured, "-", day_min_measured) as date)  min_date_eUPV_filter, *
+                      FROM 
+                      (
+                     select a.*, b.*,
+                     SUBSTR(min_date_eUPV, 0,4) year_min_measured,
+                     SUBSTR(min_date_eUPV, -4, 2) month_min_measured,
+                     SUBSTR(min_date_eUPV,  -2) day_min_measured
+
+                     from  mcgivney.thirty_day_performance_temp a
+                     LEFT JOIN 
+                     mcgivney.min_date_for_twg_eUPVs b  
+                    ON a.join_key_30day = b.join_key
+                        )
+   )
+ WHERE date_measured BETWEEN min_date_eUPV_filter and DATE_ADD(min_date_eUPV_filter, INTERVAL 30 day)
+
+
+
+-- order by date_measured
+ ;
+ 
+
+
+set sql_dialect DremelSQL;
+Grant OWNER ON TABLE mcgivney.thirty_day_performance_temp TO "thinkwithgoogle-emea-core@google.com","kennguyen@google.com","anmolbhagchand@google.com","mseregin@google.com","njulia@google.com","harryfrancis@google.com","engagementlab-core@google.com","sbelehri@google.com";
+
+
+ 
