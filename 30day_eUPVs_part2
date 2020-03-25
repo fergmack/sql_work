@@ -1,0 +1,524 @@
+
+-- where ( newTrafficColumn = 'Display' and defaultChannelGrouping = 'Paid Search' )
+
+;
+
+//*** to revert back to original go to https://plx.corp.google.com/scripts2/script_5d._5ef511_0000_2223_9d0f_001a114fc824 and change back to original Master content scorecard
+-- i.e. 
+--  from mcgivney.re_scorecard_master
+        //*** Switch back to table below if metrics look off ***\\\
+-- FROM twg_platform.Prod_ContentScoreCard_Master 
+
+//*** also change newTrafficColumn back to defaultChannelGrouping in the sum(case statements below
+
+
+-- select * from mcgivney.twg_traffic_channel_columns where pageTitle = 'Как инклюзивность и разнообразие меняют российскую рекламу' limit 100
+
+Create or replace table mcgivney.twg_traffic_channel_columns
+as
+SELECT  CASE when MONTH = 1 and YEAR = 2019 THEN '01 January 19' 
+            when MONTH = 2  and YEAR = 2019 THEN '02 February 19'
+            when MONTH = 3 and YEAR = 2019  THEN '03 March 19'
+            when MONTH = 4 and YEAR = 2019  THEN '04 April 19'
+            when MONTH = 5 and YEAR = 2019  THEN '05 May 19'
+            when MONTH = 6 and YEAR = 2019  THEN '06 June 19'
+            when MONTH = 7  and YEAR = 2019 THEN '07 July 19'
+            when MONTH = 8 and YEAR = 2019 THEN '08 August 19'
+            when MONTH = 9 and YEAR = 2019 THEN '09 September 19'
+            when MONTH = 10 and YEAR = 2019 THEN '10 October 19'
+            when MONTH = 11 and YEAR = 2019 THEN '11 November 19'  
+            when MONTH = 12 and YEAR = 2019 THEN '12 December 19'
+            when MONTH = 12 and YEAR = 2019 THEN '12 December 19'
+            
+            END publish_month, 
+            *
+  FROM
+(
+SELECT  
+extract (year FROM Publication_Date) YEAR,
+extract (month FROM Publication_Date) MONTH,
+EXTRACT (day FROM Publication_Date) DAY,
+Publication_Date, 
+publication_date_string,
+case when page like '%/sub-saharan-africa/%' then "SSA" else "non-SSA" end ssa_filter,
+pageTitle,
+countryRegion,
+Content_Type,
+Author,
+--   page,
+join_key_30day,
+--   campaign,
+concat(pageTitle, "-", countryRegion, "-", cast(Publication_Date as string)) pageTiltleCountryPubDate,
+-- all_campaigns_string_agg,
+  
+// subtract Publish_date from date of first eUPV (i.e. live date) // if the difference is >30 days then move that pageTitle to the next month
+             date_diff ( min( cast( concat( SUBSTR(cast(date as string), 1, 4), "-", SUBSTR(cast(date as string), 5, 2), "-", substr(cast(date as string), 7, 2) ) as date) ) , 
+             cast( publication_Date as date), DAY ) publish_vs_live_date, 
+
+     // for qa pub date and first live date
+            cast(regexp_replace(cast(Publication_Date as string), "-", "") as int64) pubdate_checker, 
+            cast(min(date) as int64) live_date_checker, 
+
+  
+       sum(Engaged_UPVs) eUPVs,
+  
+--   sum(CASE WHEN newTrafficColumn = 'Organic Search' THEN Engaged_UPVs ELSE 0 END) AS OrganicSearch_Engaged_UPVs,
+--         sum(case when newTrafficColumn = 'Referral' THEN Engaged_UPVs ELSE 0 END) AS Referral_Engaged_UPVs,
+--         sum(case when newTrafficColumn = 'Direct' THEN Engaged_UPVs ELSE 0 END) AS Direct_Engaged_UPVs,
+--         sum(case when newTrafficColumn = 'Paid Media' THEN Engaged_UPVs ELSE 0 END) AS PaidMedia_Engaged_UPVs,
+--         sum(case when newTrafficColumn = 'Paid Search' THEN Engaged_UPVs ELSE 0 END) AS PaidSearch_Engaged_UPVs,
+--         sum(case when newTrafficColumn = 'Email' THEN Engaged_UPVs ELSE 0 END) AS Email_Engaged_UPVs,
+--         sum(case when newTrafficColumn = '(Other)' THEN Engaged_UPVs ELSE 0 END) AS Other_Engaged_UPVs,
+--         sum(case when newTrafficColumn = 'Social' THEN Engaged_UPVs ELSE 0 END) AS Social_Engaged_UPVs,
+--         sum(case when newTrafficColumn = 'Display' THEN Engaged_UPVs ELSE 0 END) AS Display_Engaged_UPVs,
+--         sum(case when newTrafficColumn = 'Partners' THEN Engaged_UPVs ELSE 0 END) AS Partners_Engaged_UPVs
+
+  
+  // original 
+       sum(CASE WHEN defaultChannelGrouping = 'Organic Search' THEN Engaged_UPVs ELSE 0 END) AS OrganicSearch_Engaged_UPVs,
+        sum(case when defaultChannelGrouping = 'Referral' THEN Engaged_UPVs ELSE 0 END) AS Referral_Engaged_UPVs,
+        sum(case when defaultChannelGrouping = 'Direct' THEN Engaged_UPVs ELSE 0 END) AS Direct_Engaged_UPVs,
+        sum(case when defaultChannelGrouping = 'Paid Media' THEN Engaged_UPVs ELSE 0 END) AS PaidMedia_Engaged_UPVs,
+        -- important edit for subtracting gdn from paid search
+        sum(case when defaultChannelGrouping = 'Paid Search'  and defaultChannelGrouping_new != 'GDN' THEN Engaged_UPVs ELSE 0 END) AS PaidSearch_Engaged_UPVs,
+        
+        -- check email additions against this in dashboard
+        sum(case when defaultChannelGrouping = 'Email' THEN Engaged_UPVs ELSE 0 END) AS Email_Engaged_UPVs,
+        sum(case when defaultChannelGrouping = '(Other)' THEN Engaged_UPVs ELSE 0 END) AS Other_Engaged_UPVs,
+        sum(case when defaultChannelGrouping = 'Social' THEN Engaged_UPVs ELSE 0 END) AS Social_Engaged_UPVs,
+        sum(case when defaultChannelGrouping = 'Display' THEN Engaged_UPVs ELSE 0 END) AS Display_Engaged_UPVs,
+        sum(case when defaultChannelGrouping = 'Partners' THEN Engaged_UPVs ELSE 0 END) AS Partners_Engaged_UPVs,
+  sum(case when defaultChannelGrouping_new = 'GDN'    and defaultChannelGrouping = 'Paid Search' 
+    then Engaged_UPVs else 0 end) as GDN_Engaged_UPVs
+  ,
+  
+  // email additions 
+--   sum(case when defaultChannelGrouping_new = 'Email: CA'  and lower(defaultChannelGrouping) = 'email' 
+--     then Engaged_UPVs else 0 end) as emCA_Engaged_UPVs,
+--   sum(case when defaultChannelGrouping_new = 'Email: NL'    and lower(defaultChannelGrouping) = 'email' 
+--     then Engaged_UPVs else 0 end) as emNL_Engaged_UPVs
+sum(case when  email_ca is not null then Engaged_UPVs else 0 end) as Email_CA_eUPVs,
+sum(case when  email_nl is not null then Engaged_UPVs else 0 end) as Email_NL_eUPVs,
+sum( case when lower(emea_gdn) like '%gdn banner%' then Engaged_UPVs else 0 end) as EMEA_GDN_eUPVs,
+sum ( case when lower(trueview) like '%trueview%' or lower(trueview) like '%trv%' then Engaged_UPVs else 0 end) as trueview_eUPVs
+
+          
+--   todo add Email: SP
+  
+  
+  // located in another script 
+FROM mcgivney.thirty_day_performance a
+--   left join (select join_key_30day join_key_30day_B, string_agg(campaign) as all_campaigns_string_agg from mcgivney.thirty_day_performance group by 1 ) b 
+--   on a.join_key_30day = b.join_key_30day_B
+
+where publication_date_string >= '2018-01-01'
+-- and page not like '%/sub-saharan-africa/%'
+
+
+  group by 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11
+--   , 13, 14
+  )
+ORDER BY eUPVs DESC
+  
+;
+//--//
+
+create or replace table mcgivney.twg_traffic_channel_columns_V1
+as
+select  
+*
+
+from 
+ 
+(
+select  
+  
+ 
+  b.page_title_link, b.article_age_days, 
+  fullURL,
+  fullURL_cleaned,
+  
+a.*
+--   REPLACE(all_campaigns_string_agg, "(not set),", "") all_campaigns
+ 
+  
+  
+  
+  from mcgivney.twg_traffic_channel_columns a
+  
+left join 
+  (
+    select * 
+    from (
+            select distinct page_title_link, fullURL, fullURL_cleaned, article_age_days,  join_key,  ROW_NUMBER()OVER(PARTITION BY join_key) AS postIDX
+
+            from twg_platform.EMEA.emea_content_benchmarks
+            )
+    where  postIDX = 1
+            ) b 
+on a.join_key_30day = b.join_key
+ 
+    )
+
+
+-- group by
+-- field_name ,
+-- publish_month ,
+-- YEAR ,
+-- MONTH ,
+-- DAY ,
+-- Publication_Date ,
+-- publication_date_string ,
+-- pageTitle ,
+-- countryRegion ,
+-- Content_Type ,
+-- Author ,
+-- page ,
+-- join_key_30day ,
+-- campaign ,
+-- pageTiltleCountryPubDate ,
+-- article_count ,
+-- content_type_count ,
+-- eUPVs ,
+-- OrganicSearch_Engaged_UPVs ,
+-- Referral_Engaged_UPVs ,
+-- Direct_Engaged_UPVs ,
+-- PaidMedia_Engaged_UPVs ,
+-- PaidSearch_Engaged_UPVs ,
+-- Email_Engaged_UPVs ,
+-- Other_Engaged_UPVs ,
+-- Social_Engaged_UPVs ,
+-- Display_Engaged_UPVs ,
+-- Partners_Engaged_UPVs ,
+
+-- 1, 2, 3, 4, 5, 6, 8, 9 , 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30,31, 32
+
+;
+
+
+
+;
+
+                        // matching URL sent out in Marketo 
+
+                                          create or replace table mcgivney.email_promoed_content
+                                          as
+                                          select concat("https://www.", link_name) link_name, dates
+                                          from (
+                                          SELECT 
+                                          REGEXP_REPLACE(link_key, r"\/$", "") link_name,
+
+                                          array_to_string(mailing_key_arr, ",") dates
+
+                                          FROM ads_mackinaw.EmailLink a
+                                          )
+                                          where dates like "%2018%" or dates like '%2019%'
+                                          and link_name like "%thinkwithgoogle%"
+                                          ;
+
+                             // email data    
+--                         create or replace table mcgivney.twg_country_emails as
+--                         select  
+--                                     *
+--                         FROM 
+--                         (
+--                         SELECT case when region = 'ES' then 'Spain' 
+--                                     when region = 'FR' then 'France'
+--                                     when region = 'RU' then 'Russia'
+--                                     when region = 'BNL' then 'Nordics'
+--                                     when region = 'NOR' then 'Nordics'
+--                                     when region = 'CEE' then 'Central Eastern Europe'
+--                                     when region = 'DACH' then 'Germany'
+--                                     when region = 'IT' then 'Italy'
+--                                     when region = 'TR' then 'Turkey'           
+--                                     else region
+--                                     end emails_countryRegion,
+                         
+--                                                               month email_month,
+--                         --        u_opens_greater_than_100,
+                          
+--                           count(email) emails_sent
+                          
+--                         FROM twg_platform.EMEA.twg_emails_sent_non_test 
+--                           where month > '2019*'
+--                           GROUP BY 1, 2
+--                         ) a  left join (select * from google.q2_19_emails_alloc ) b 
+--                         on a.emails_countryRegion = b.country
+--                         group by 1, 2, 3, 4, 5
+                        ;
+-- on a.region = b.country
+
+
+-- ////// main 
+-- select pageTitle from  mcgivney.twg_traffic_channel_columns_V2
+-- where Publication_Date > '2019-09-01'
+
+-- 	select pageTitle, sum(eUPVs) from mcgivney.twg_traffic_channel_columns_V2
+-- where pageTitle = 'Как инклюзивность и разнообразие меняют российскую рекламу'
+-- group by 1
+
+
+
+
+
+
+create or replace table mcgivney.twg_traffic_channel_columns_V2_temp as
+-- CREATE or replace table mcgivney.temp_test as
+
+-- case when link_name_str is not null then 'Promo-ed' else link_name_str end link_name_str_final,
+SELECT
+case when link_name is not null then 'Yes' else link_name end url_in_marketo,
+case when countryRegion = 'MENA French' then 'MENA' else countryRegion end countryRegion,
+-- case when url_email_date is null then 'URL not emailed' else url_email_date end url_email_date,
+page_title_link,
+article_age_days,
+PaidSearch_Engaged_UPVs,
+Display_Engaged_UPVs,
+PaidMedia_Engaged_UPVs,
+Publication_Date,
+publication_date_string,
+pageTitle,
+Content_Type,
+Author,
+-- page,
+ssa_filter,
+publish_vs_live_date,
+// date check
+pubdate_checker, live_date_checker,
+parse_date('%Y%m%d' , cast(live_date_checker as string)) live_date_string,
+//
+-- campaign,
+concat(fullURL_cleaned, "-", countryRegion) fullURL_cleaned_country,
+join_key_30day,
+eUPVs,
+fullURL,
+fullURL_cleaned,
+Email_Engaged_UPVs,
+OrganicSearch_Engaged_UPVs,
+Partners_Engaged_UPVs,
+Direct_Engaged_UPVs,
+pageTiltleCountryPubDate,
+Referral_Engaged_UPVs,
+Social_Engaged_UPVs,
+Other_Engaged_UPVs,
+// Ad hoc additions GDN
+GDN_Engaged_UPVs,
+Email_CA_eUPVs,
+Email_NL_eUPVs,
+EMEA_GDN_eUPVs,
+trueview_eUPVs,
+
+publish_month,
+-- market_population,
+link_name
+-- unique_open,
+-- unq_click_link,
+-- delivered
+-- REPLACE(all_campaigns, ",(not set)", "") all_campaigns
+
+
+from 
+(             -- note: count(countryRegion) is to divide the join on emails_sent above
+    select * from mcgivney.twg_traffic_channel_columns_V1 Main
+    left join ( select DISTINCT link_name from mcgivney.email_promoed_content
+      ) email_promo
+    on   email_promo.link_name = Main.fullURL_cleaned
+--     LEFT JOIN (select emails_countryRegion, email_month, sum(emails_sent) emails_sent from mcgivney.twg_country_emails group by 1, 2) emails_sent 
+--     on Main.countryRegion = emails_sent.emails_countryRegion 
+  
+
+
+) 
+
+--   group by 1, 2, 3, 4, 5, 6, 7, 9 , 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34
+ ;
+
+// -- testing hp card page clicks
+
+
+
+create or replace table mcgivney.twg_traffic_channel_columns_V2
+AS
+select
+
+url_in_marketo,
+ countryRegion,
+page_title_link,
+article_age_days,
+// Publish_Date verus actual live date (i.e. date of first eUPV)
+
+Publication_Date,
+publication_date_string,
+pageTitle,
+Content_Type,
+                                            // date checkers pub date vs live date
+                                            pubdate_checker, 
+                                            live_date_checker,
+                                            publish_vs_live_date,
+
+                                            -- new publish date
+           concat( substr(  cast( live_date_checker as string), 1, 4), "-",  substr(  cast( live_date_checker as string), 5, 2), "-", substr(  cast( live_date_checker as string), 7, 2) )  live_date_of_first_eUPV,
+concat(
+ cast( extract( year from  cast(  concat( substr(  cast( live_date_checker as string), 1, 4), "-",  substr(  cast( live_date_checker as string), 5, 2), "-", substr(  cast( live_date_checker as string), 7, 2) ) as date ) ) as string) , // live year
+ "-",
+ cast( extract( month from  cast(  concat( substr(  cast( live_date_checker as string), 1, 4), "-",  substr(  cast( live_date_checker as string), 5, 2), "-", substr(  cast( live_date_checker as string), 7, 2) ) as date ) ) as string)  
+  ) live_year_month, // live_month
+
+//
+Author,
+-- page,
+-- campaign,
+
+join_key_30day,
+fullURL,
+fullURL_cleaned,
+ fullURL_cleaned_country,
+
+pageTiltleCountryPubDate,
+
+publish_month,
+-- market_population,
+
+-- all_campaigns,
+link_name,
+
+-- minDate,
+-- maxDate,
+// time on page
+-- DATE_DIFF(cast(maxDate as date), cast(live_date_string as date), day) days_on_homepage, 
+-- HPcard_clicks,
+--  eUPVs_test,
+-- HPcard_impressions,
+-- pageTitle_test,
+-- market,
+time_on_hp,
+HPcard_clicks,
+eUPVs_from_homepage,
+
+
+ssa_filter,
+
+count(page_title_link) page_title_counter,
+-- case when sum(eUPVs_from_homepage)  <= sum(HPcard_clicks) then  sum(eUPVs_from_homepage) else sum(HPcard_clicks) end HP_eUPVs,
+sum(eUPVs) eUPVs,
+
+concat(Content_Type, CountryRegion, publication_date_string) content_type_counter,
+
+ concat(pageTitle, CountryRegion, publication_date_string) article_counter,
+
+SUM(PaidSearch_Engaged_UPVs) PaidSearch_Engaged_UPVs,
+SUM(Display_Engaged_UPVs) Display_Engaged_UPVs ,
+SUM(PaidMedia_Engaged_UPVs) PaidMedia_Engaged_UPVs ,
+SUM(Referral_Engaged_UPVs) Referral_Engaged_UPVs,
+SUM(Social_Engaged_UPVs) Social_Engaged_UPVs,
+SUM(Other_Engaged_UPVs) Other_Engaged_UPVs,
+SUM(Email_Engaged_UPVs) Email_Engaged_UPVs ,
+SUM(OrganicSearch_Engaged_UPVs)  OrganicSearch_Engaged_UPVs,
+SUM(Partners_Engaged_UPVs) Partners_Engaged_UPVs,
+SUM(Direct_Engaged_UPVs) Direct_Engaged_UPVs,
+// adhoc additions 
+///GDN 
+sum(GDN_Engaged_UPVs) GDN_Engaged_UPVs,
+sum(Email_CA_eUPVs) Email_CA_eUPVs,
+sum(Email_NL_eUPVs) Email_NL_eUPVs,
+sum(EMEA_GDN_eUPVs) EMEA_GDN_eUPVs,
+sum(trueview_eUPVs) trueview_eUPVs
+
+
+-- sum(unique_open) unique_open,
+-- sum(unq_click_link) unq_click_link ,
+-- sum(delivered) delivered
+
+
+
+ 
+
+FROM mcgivney.twg_traffic_channel_columns_V2_temp Main
+
+left join 
+( select fullURL_cleaned url_joiner, case when time_on_hp = 0 then 1 else time_on_hp end time_on_hp , 
+          case when eUPVs_from_homepage > HPcard_clicks  and HPcard_clicks is not NULL then HPcard_clicks else eUPVs_from_homepage end eUPVs_from_homepage, 
+          sum(HPcard_clicks) HPcard_clicks
+--           sum(HPcard_clicks) test
+from mcgivney.finalHP_clicks_eUPVs 
+  group by 1, 2, 3 ) hp 
+  on Main.fullURL_cleaned = hp.url_joiner
+
+ // ***** CARD CLICKS *** ///  somehow script here https://plx.corp.google.com/scripts2/script_5d._9dff07_0000_28c3_92b2_001a114c814e
+                                                                                          --   LEFT JOIN 
+                                                                                          --   ( 
+                                                                                          --     select 
+                                                                                          --       pageTitle_test,
+                                                                                          -- Category,
+                                                                                          -- card_page_visited_cleaned,
+                                                                                          -- market,
+                                                                                          -- minDate,
+                                                                                          -- maxDate,
+                                                                                          -- DATE_DIFF(cast(maxDate as date), cast(minDate as date) , day) days_on_hp,
+                                                                                          -- sum(HPcard_clicks) HPcard_clicks,
+                                                                                          -- sum(HPcard_impressions) HPcard_impressions,
+                                                                                          -- sum(eUPVs_test) eUPVs_test       
+                                                                                          --       from mcgivney.HPcard_final_joiner 
+                                                                                          --       group by 1, 2, 3, 4, 5, 6, 7
+
+                                                                                          --     //test 
+                                                                                          -- --     where card_page_visited_cleaned like '%what-stops-people-skipping-ads-3-lessons-industry-leaders%'
+
+                                                                                          --     ) cardclicks
+                                                                                          --   on Main.fullURL_cleaned = cardclicks.card_page_visited_cleaned
+
+                                                                                          --   //// ***** eUPVS FROM HOMEPAGE *** ////
+                                                                                          --   left join ( select page page_hp, concat(fullURL_cleaned, "-", CountryRegion) fullURL_cleaned_hp, sum(eUPVs_from_homepage) eUPVs_from_homepage from mcgivney.eUPVs_from_homepage_test group by 1, 2 
+
+                                                                                          --     ) hp
+                                                                                          --     on Main.fullURL_cleaned_country = hp.fullURL_cleaned_hp
+                                                                                          -- --     where pageTitle != "tendances-du-commerce-de-détail-cinq-méthodes-pour-engager-les-consommateurs-pendant-les-fêtes-de-fin-dannée-et-au-delà"
+                                                                                          -- --     and pageTitle != 'Как работают легкие страницы: CPA ниже, продажи ГК «А101» выше'
+    
+  group by 1, 2, 3, 4, 5, 6, 7, 8, 9 , 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25
+;
+
+
+// aritlces with no eUPVs in first 30 days
+-- CREATE OR REPLACE table mcgivney.no_eUPVs_in_first30days as
+-- SELECT CASE when MONTH = 1 THEN 'January' 
+--             when MONTH = 2 THEN 'February'
+--             when MONTH = 3 THEN 'March'
+--             when MONTH = 4 THEN 'April'
+--             when MONTH = 5 THEN 'May'
+--             when MONTH = 6 THEN 'June'
+--             when MONTH = 7 THEN 'July'
+--             when MONTH = 8 THEN 'August'
+--             when MONTH = 9 THEN 'September'
+--             when MONTH = 10 THEN 'October'
+--             when MONTH = 11 THEN 'November'
+--             when MONTH = 12 THEN 'December'
+--             END publish_month,
+--             *
+
+-- FROM (
+-- SELECT extract (year FROM Publication_Date_toMonth) YEAR,
+-- extract (month FROM Publication_Date_toMonth) MONTH,
+-- EXTRACT (day FROM Publication_Date_toMonth) DAY,
+-- *
+
+-- from 
+-- (
+-- select CASE WHEN pageTitle_30day is NULL THEN 'No eUPVs in first 30 days' END no_eUPVS_in_first30days, 
+-- cast(a.Publication_Date as date) Publication_Date_toMonth,
+-- * 
+-- from  (select DISTINCT pageTitle, CountryRegion, Publication_Date FROM twg_platform.EMEA.emea_content_benchmarks
+-- where Publication_Date > '2019-01-01'  ) a
+-- full JOIN
+-- (select DISTINCT pageTitle pageTitle_30day, CountryRegion CountryRegion_30day, Publication_Date Publication_Date_30day FROM mcgivney.twg_traffic_channel_columns_V2
+-- where Publication_Date > '2019-01-01' ) b
+-- on a.pageTitle = b.pageTitle_30day
+  
+--   )
+-- )
+-- ;
+
+set sql_dialect DremelSQL;
+Grant OWNER ON TABLE mcgivney. to ''
+set sql_dialect GoogleSQL;
+
